@@ -20,11 +20,19 @@ os.open(path, os.O_RDONLY) is the only way this module touches the source.
 There is no write path, no repair, no fsck, no mount. That is enforced by the
 open flags, not by convention.
 """
+import datetime
+import fnmatch
 import io
-import re
 import os
+import re
+import struct
+from collections import OrderedDict
 
 SECTOR = 512
+
+# NTFS 8.3 short-name marker (FOO~1). Module level: dedupe_records is called
+# per directory walk, and re.compile in the body recompiles it every time.
+_SHORTNAME = re.compile(r"~\d")
 
 
 class AlignedReader(io.RawIOBase):
@@ -43,8 +51,10 @@ class AlignedReader(io.RawIOBase):
         self._fd = os.open(path, os.O_RDONLY)   # read-only by construction
         self._pos = 0
         self._block = block
-        self._cache = {}
-        self._order = []
+        # OrderedDict, not dict + a list: evicting from a list is pop(0), which
+        # is O(n) in the cache size, and this evicts on every miss once warm.
+        # move_to_end/popitem are O(1).
+        self._cache = OrderedDict()
         self._cachemax = cache
         if size is None:
             size = _device_size(path, self._fd)
@@ -63,13 +73,13 @@ class AlignedReader(io.RawIOBase):
     def _blk(self, idx):
         hit = self._cache.get(idx)
         if hit is not None:
+            self._cache.move_to_end(idx)
             return hit
         os.lseek(self._fd, idx * self._block, os.SEEK_SET)
         data = os.read(self._fd, self._block)
         self._cache[idx] = data
-        self._order.append(idx)
-        if len(self._order) > self._cachemax:
-            del self._cache[self._order.pop(0)]
+        if len(self._cache) > self._cachemax:
+            self._cache.popitem(last=False)      # evict least recently used
         return data
 
     def read(self, n=-1):
@@ -228,11 +238,9 @@ def dedupe_records(entries):
     component. Rank by how many 8.3 components a path contains (fewer wins),
     and only use length as a tie-breaker.
     """
-    short = re.compile(r"~\d")
-
     def rank(path):
         parts = path.replace("\\", "/").split("/")
-        return (sum(1 for p in parts if short.search(p)), -len(path))
+        return (sum(1 for p in parts if _SHORTNAME.search(p)), -len(path))
 
     best = {}
     for path, rec in entries:
@@ -277,3 +285,94 @@ def walk(rec, prefix="", depth=0, maxdepth=40, skip_dirs=()):
                 yield path, child
         except Exception:
             continue
+
+
+def parse_since(spec):
+    """'2025' | '2025-02' | '2025-02-14' -> aware datetime, or None."""
+    if not spec:
+        return None
+    q = [int(x) for x in str(spec).split("-")]
+    return datetime.datetime(q[0],
+                             q[1] if len(q) > 1 else 1,
+                             q[2] if len(q) > 2 else 1,
+                             tzinfo=datetime.timezone.utc)
+
+
+def find_records(ntfs, pattern, since=None, progress=None):
+    """Search the whole MFT by filename. Returns deduplicated [(path, record)].
+
+    Bare words are wrapped in globs, so --find report matches *report*.
+
+    Ordering matters for speed: the cheap filename match is applied BEFORE
+    full_path(), which walks the parent chain and is comparatively expensive.
+    Calling it on every record instead of on matches only turns a scan of a
+    few hundred thousand records into minutes of extra work.
+    """
+    pat = pattern if any(c in pattern for c in "*?[") else f"*{pattern}*"
+    rx = re.compile(fnmatch.translate(pat), re.I)
+    since_dt = parse_since(since)
+
+    hits, n = [], 0
+    for rec in ntfs.mft.segments():
+        n += 1
+        if progress and n % 100000 == 0:
+            progress(n)
+        try:
+            if rec.is_dir():
+                continue
+            name = rec.filename
+            if not name or not rx.match(name):      # cheap test first
+                continue
+            if since_dt:
+                mod, cre = timestamps(rec)
+                if not any(t and t >= since_dt for t in (mod, cre)):
+                    continue
+            hits.append((rec.full_path(), rec))     # expensive, matches only
+        except Exception:
+            continue
+    return dedupe_records(hits), n
+
+
+def recycle_bin_items(ntfs):
+    """Deleted files that still have their data.
+
+    Windows splits a recycled file in two: $I<id> holds the original full path
+    and the deletion timestamp, $R<id> holds the untouched file data. Pairing
+    them recovers both the content and where it came from.
+
+    Yields (original_path, deleted_datetime, data_record, r_name).
+    """
+    try:
+        rb = ntfs.mft.get("$Recycle.Bin")
+    except Exception:
+        return
+    for sid, ie in rb.listdir().items():
+        if sid in (".", ".."):
+            continue
+        try:
+            sd = ie.dereference()
+            if not sd.is_dir():
+                continue
+            entries = sd.listdir()
+        except Exception:
+            continue
+        for name, ie2 in entries.items():
+            if not name.upper().startswith("$I"):
+                continue
+            try:
+                d = ie2.dereference().open().read()
+                ver = struct.unpack_from("<Q", d, 0)[0]
+                ftv = struct.unpack_from("<Q", d, 16)[0]
+                when = datetime.datetime(1601, 1, 1) + datetime.timedelta(
+                    microseconds=ftv // 10)
+                if ver >= 2:
+                    nlen = struct.unpack_from("<I", d, 24)[0]
+                    orig = d[28:28 + nlen * 2].decode("utf-16-le").rstrip("\x00")
+                else:
+                    orig = d[24:24 + 520].decode("utf-16-le").rstrip("\x00")
+                rname = name.replace("$I", "$R", 1)
+                rrec = entries.get(rname)
+                if rrec is not None:
+                    yield orig, when, rrec.dereference(), rname
+            except Exception:
+                continue

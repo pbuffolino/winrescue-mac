@@ -23,18 +23,15 @@ Usage:
   05-extract-nomount.py /dev/rdisk4s3 --recycle-bin ~/Recovered
 """
 import argparse
-import fnmatch
 import hashlib
 import os
-import re
-import struct
 import sys
 import time
 import zipfile
-import datetime
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib"))
-from ntfsread import open_volume, human, walk, timestamps, dedupe_records  # noqa: E402
+from ntfsread import (open_volume, human, walk,  # noqa: E402
+                      dedupe_records, find_records, recycle_bin_items)
 
 # offset -> expected magic. "A file that exists is not a file that opens."
 MAGIC = {
@@ -113,76 +110,13 @@ def gather(ntfs, args):
             out = [(os.path.basename(p), rec)]
 
     elif args.find:
-        pat = args.find if any(c in args.find for c in "*?[") else f"*{args.find}*"
-        rx = re.compile(fnmatch.translate(pat), re.I)
-        since_dt = None
-        if args.since:
-            q = [int(x) for x in args.since.split("-")]
-            since_dt = datetime.datetime(q[0], q[1] if len(q) > 1 else 1,
-                                         q[2] if len(q) > 2 else 1,
-                                         tzinfo=datetime.timezone.utc)
-        hits, n = [], 0
-        for rec in ntfs.mft.segments():
-            n += 1
-            if n % 100000 == 0:
-                print(f"  ... {n:,} MFT records", file=sys.stderr, flush=True)
-            try:
-                if rec.is_dir():
-                    continue
-                name = rec.filename
-                if not name or not rx.match(name):
-                    continue
-                if since_dt:
-                    mod, cre = timestamps(rec)
-                    if not any(t and t >= since_dt for t in (mod, cre)):
-                        continue
-                hits.append((rec.full_path(), rec))
-            except Exception:
-                continue
-        print(f"  scanned {n:,} MFT records")
-        out = [(p.replace("\\", "/").split("/")[-1], r)
-               for p, r in dedupe_records(hits)]
+        def progress(n):
+            print(f"  ... {n:,} MFT records", file=sys.stderr, flush=True)
+
+        hits, scanned = find_records(ntfs, args.find, args.since, progress)
+        print(f"  scanned {scanned:,} MFT records")
+        out = [(p.replace("\\", "/").split("/")[-1], r) for p, r in hits]
     return out
-
-
-def recycle_bin_items(ntfs):
-    """[(original_path, deleted_when, $R record)] -- deleted files, data intact."""
-    items = []
-    try:
-        rb = ntfs.mft.get("$Recycle.Bin")
-    except Exception:
-        return items
-    for sid, ie in rb.listdir().items():
-        if sid in (".", ".."):
-            continue
-        try:
-            sd = ie.dereference()
-            if not sd.is_dir():
-                continue
-            entries = sd.listdir()
-        except Exception:
-            continue
-        for name, ie2 in entries.items():
-            if not name.upper().startswith("$I"):
-                continue
-            try:
-                d = ie2.dereference().open().read()
-                ver = struct.unpack_from("<Q", d, 0)[0]
-                ftv = struct.unpack_from("<Q", d, 16)[0]
-                when = datetime.datetime(1601, 1, 1) + datetime.timedelta(
-                    microseconds=ftv // 10)
-                if ver >= 2:
-                    nlen = struct.unpack_from("<I", d, 24)[0]
-                    orig = d[28:28 + nlen * 2].decode("utf-16-le").rstrip("\x00")
-                else:
-                    orig = d[24:24 + 520].decode("utf-16-le").rstrip("\x00")
-                rname = name.replace("$I", "$R", 1)
-                rrec = entries.get(rname)
-                if rrec is not None:
-                    items.append((orig, when, rrec.dereference(), rname))
-            except Exception:
-                continue
-    return items
 
 
 def main():

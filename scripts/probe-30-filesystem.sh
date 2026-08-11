@@ -81,10 +81,11 @@ SECTORS=$(( BIG_SZ / 512 ))
 printf '         %-14s %-9s %s\n' "OFFSET" "ENTROPY" "ZERO%"
 for FRAC in 0 1 2 3; do
   SKIP=$(( SECTORS / 4 * FRAC ))
-  printf '         %-14s %-9s %s\n' \
-    "$(human $(( SKIP * 512 )))" \
-    "$(sample_entropy "$BIG" "$SKIP")" \
-    "$(sample_zero_pct "$BIG" "$SKIP")"
+  # One read per sample point yields both figures.
+  read -r ENT ZERO <<EOF
+$(sample_stats "$BIG" "$SKIP")
+EOF
+  printf '         %-14s %-9s %s\n' "$(human $(( SKIP * 512 )))" "$ENT" "$ZERO"
 done
 
 step "Verdict"

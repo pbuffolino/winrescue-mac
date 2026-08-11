@@ -88,28 +88,23 @@ else
 fi
 
 step "Safety guards (self-test)"
-BLOCKED=0; TOTAL=0
-for C in "diskutil eraseDisk x" "diskutil partitionDisk x" "diskutil repairVolume x" \
-         "diskutil eraseVolume x" "diskutil reformat x" "diskutil zeroDisk x" \
-         "fsck_msdos -y x" "newfs_msdos x" "mkfs.ntfs x" \
-         "dd if=/dev/zero of=/dev/disk9" "dd if=/dev/disk9 of=/tmp/x.img" \
-         "dd if=/dev/disk9 of=/dev/null.img" "rm -rf /Volumes/X"; do
-  TOTAL=$((TOTAL+1))
-  ( refuse_destructive $C ) >/dev/null 2>&1
-  [ $? -eq 99 ] && BLOCKED=$((BLOCKED+1)) || err "  NOT BLOCKED: $C"
-done
-[ "$BLOCKED" -eq "$TOTAL" ] && ok "Destructive commands blocked: $BLOCKED/$TOTAL" \
-  || { err "Only $BLOCKED/$TOTAL blocked — DO NOT USE."; PROBLEMS=$((PROBLEMS+1)); }
-
-ALLOWED=0; ATOTAL=0
-for C in "dd if=/dev/rdisk9 of=/dev/null" "diskutil list" \
-         "diskutil mount readOnly /dev/disk9s1"; do
-  ATOTAL=$((ATOTAL+1))
-  ( refuse_destructive $C ) >/dev/null 2>&1
-  [ $? -eq 0 ] && ALLOWED=$((ALLOWED+1)) || err "  WRONGLY BLOCKED: $C"
-done
-[ "$ALLOWED" -eq "$ATOTAL" ] && ok "Read-only commands allowed: $ALLOWED/$ATOTAL" \
-  || PROBLEMS=$((PROBLEMS+1))
+# Delegates to the real suite instead of keeping a second, smaller copy of the
+# cases here. Two lists drift, and the one that drifts is always the one nobody
+# runs -- which for a safety guard is the whole ballgame. CI runs the same file.
+GUARD_TESTS="$REPO/tests/test-guards.sh"
+if [ -f "$GUARD_TESTS" ]; then
+  if GUARD_OUT="$(bash "$GUARD_TESTS" 2>&1)"; then
+    ok "$(printf '%s' "$GUARD_OUT" | grep -E '^passed ' | head -1)"
+    ok "All safety guards hold (tests/test-guards.sh)"
+  else
+    err "SAFETY GUARD TESTS FAILED — do not use this checkout."
+    printf '%s\n' "$GUARD_OUT" | grep -E 'NOT OK|failed' | head -20
+    PROBLEMS=$((PROBLEMS+1))
+  fi
+else
+  err "tests/test-guards.sh is missing — cannot verify the safety guards."
+  PROBLEMS=$((PROBLEMS+1))
+fi
 
 step "Staging destination"
 note "Staging is $STAGING (deliberately outside this repo)"
