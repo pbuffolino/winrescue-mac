@@ -27,8 +27,6 @@ printf '\n'
 printf '%-12s %-22s %-12s %-12s %s\n' "PART" "NAME" "SIZE" "FSTYP" "HEADER VERDICT"
 printf '%-12s %-22s %-12s %-12s %s\n' "----" "----" "----" "-----" "--------------"
 
-TARGET=""; TARGET_SIZE=0; FOUND_BITLOCKER=0
-
 for P in $PARTS; do
   NAME="$(diskutil info "/dev/$P" 2>/dev/null | awk -F': *' '/Volume Name/{print $2; exit}')"
   [ -n "$NAME" ] || NAME="(none)"
@@ -45,17 +43,12 @@ for P in $PARTS; do
   printf '%-12s %-22.22s %-12s %-12s %s\n' \
     "$P" "$NAME" "$(human "$PSIZE")" "$FS" "$VERDICT  [$OEM]"
 
-  case "$VERDICT" in
-    "BITLOCKER ENCRYPTED"|"BitLocker To Go") FOUND_BITLOCKER=1 ;;
-  esac
-
-  # The real C: drive is the largest NTFS/BitLocker partition.
-  if [ "$PSIZE" -gt "$TARGET_SIZE" ]; then
-    case "$VERDICT" in
-      NTFS*|BITLOCKER*|"BitLocker To Go") TARGET="$P"; TARGET_SIZE="$PSIZE" ;;
-    esac
-  fi
 done
+# This loop deliberately does NOT choose a target partition. It used to pick the
+# largest partition whose classify_oem verdict was NTFS or BitLocker -- which
+# silently skipped any partition whose header could not be read, and an
+# unreadable header is the entire reason this probe exists. The verdict section
+# below starts from the largest partition by SIZE and reads its headers directly.
 
 step "Current mount state"
 show "mount | grep /dev/$DISK"
