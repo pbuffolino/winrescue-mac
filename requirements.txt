@@ -16,4 +16,4 @@ dissect.fve>=4.6
 # pure Python and runs at ~4 MB/s, which is ~17 hours for a 237 GB volume.
 # lib/fastcrypto.py patches it to this and gets ~90 MB/s, verified
 # byte-identical against the reference implementation.
-cryptography>=45.0
+cryptography>=50.0.0
