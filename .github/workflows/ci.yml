@@ -20,7 +20,7 @@ jobs:
     name: safety guards
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Run safety guard suite
         run: bash tests/test-guards.sh
 
@@ -28,7 +28,7 @@ jobs:
     name: shell lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Syntax check every shell script
         run: |
@@ -53,7 +53,7 @@ jobs:
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
@@ -78,7 +78,7 @@ jobs:
     name: privacy audit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Recovery work involves other people's data. A filename, a Windows SID
       # or a volume GUID committed by accident is a real disclosure, and it is
@@ -124,7 +124,7 @@ jobs:
     name: docs
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Required documentation is present
         run: |
           fail=0
