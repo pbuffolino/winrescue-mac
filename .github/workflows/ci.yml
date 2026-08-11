@@ -130,7 +130,8 @@ jobs:
           fail=0
           for f in README.md CLAUDE.md CONTRIBUTING.md CODE_OF_CONDUCT.md SECURITY.md \
                    LICENSE requirements.txt docs/PLAYBOOK.md docs/LESSONS.md \
-                   docs/PLATFORM-CHOICE.md .claude/skills/winrescue/SKILL.md; do
+                   docs/PLATFORM-CHOICE.md docs/HANDOFF.md \
+                   .claude/skills/winrescue/SKILL.md; do
             [ -f "$f" ] || { echo "::error::missing $f"; fail=1; }
           done
           exit $fail

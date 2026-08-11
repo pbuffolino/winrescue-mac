@@ -224,6 +224,9 @@ open ~/Recovered/some.jpg
 
 ## 5. Hand off and clean up
 
+Use [`HANDOFF.md`](HANDOFF.md) as the per-job worksheet — inventory, transfer method,
+sign-off and the cleanup checklist.
+
 - [ ] Owner confirms they have everything they need.
 - [ ] `RECOVERY-LOG.md` updated.
 - [ ] Eject: `diskutil eject diskN`.
