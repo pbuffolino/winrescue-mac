@@ -105,6 +105,19 @@ check("keeps the long-name path",
 check("empty input is safe", dedupe_records([]) == [])
 
 
+# --------------------------------------------------------------- parse_since
+print()
+print("== parse_since (shared by both no-mount tools) ==")
+from ntfsread import parse_since  # noqa: E402
+import datetime as _dt
+
+check("None passes through", parse_since(None) is None)
+check("year only", parse_since("2025") == _dt.datetime(2025, 1, 1, tzinfo=_dt.timezone.utc))
+check("year-month", parse_since("2025-02") == _dt.datetime(2025, 2, 1, tzinfo=_dt.timezone.utc))
+check("full date", parse_since("2025-02-14") == _dt.datetime(2025, 2, 14, tzinfo=_dt.timezone.utc))
+check("result is timezone-aware", parse_since("2025").tzinfo is not None)
+
+
 # ---------------------------------------------------------------- fastcrypto
 print()
 print("== fastcrypto ==")
