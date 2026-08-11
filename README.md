@@ -295,3 +295,5 @@ logs/                         raw probe output (gitignored — contains filename
 Share it. It contains no personal data by design: `logs/` and `~/Recovered` are excluded,
 and the case study in `RECOVERY-LOG.md` is redacted. **If you fork this after a real job,
 check `logs/` and `RECOVERY-LOG.md` before publishing.**
+
+<!-- protection test -->
