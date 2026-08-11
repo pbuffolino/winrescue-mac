@@ -28,17 +28,34 @@ banner "PROBE 40 — CONTENT SURVEY" "source: $VOL"
 INDEX="$LOGS/fileindex-$(ts).txt"
 
 step "Windows user profiles"
-show "ls -1 $VOL/Users"
+show "find $VOL/Users -maxdepth 1 -type d"
 if [ ! -d "$VOL/Users" ]; then
   warn "No Users/ directory at '$VOL' — is this the Windows system partition?"
-  ls -1 "$VOL" | head -20
+  find "$VOL" -maxdepth 1 -mindepth 1 -exec basename {} \; 2>/dev/null | head -20
   exit 1
 fi
-ls -1 "$VOL/Users" | grep -viE '^(Public|Default|Default User|All Users|desktop.ini)$' || true
+
+# Real profiles = directories under Users/ that are not Windows built-ins.
+#
+# Uses find plus a case filter rather than `ls | grep`: Windows names routinely
+# contain spaces and other characters that break line-based parsing, and a
+# profile skipped because of a stray character is a profile whose data never
+# gets copied.
+list_profiles() {
+  find "$VOL/Users" -maxdepth 1 -mindepth 1 -type d 2>/dev/null \
+  | while IFS= read -r d; do
+      b="${d##*/}"
+      case "$(printf '%s' "$b" | tr '[:upper:]' '[:lower:]')" in
+        public|default|'default user'|'all users'|desktop.ini) continue ;;
+      esac
+      printf '%s\n' "$b"
+    done
+}
+list_profiles
 
 WUSER="${2:-}"
 if [ -z "$WUSER" ]; then
-  WUSER="$(ls -1 "$VOL/Users" | grep -viE '^(Public|Default|Default User|All Users|desktop.ini)$' | head -1)"
+  WUSER="$(list_profiles | head -1)"
   note "No username given; using '$WUSER'. Pass one explicitly to override."
 fi
 U="$VOL/Users/$WUSER"

@@ -310,36 +310,31 @@ fve_markers() {
   printf 'none'; return 1
 }
 
-# Shannon entropy, in bits per byte, of a 64 KiB sample at a byte offset.
+# Entropy and zero-fraction of a 64 KiB sample, from ONE read.
 #
-# The tie-breaker when headers are ambiguous. Encrypted data is uniformly
-# random and lands at ~7.99 everywhere. Real filesystem content is structured
-# and varies -- zero runs read 0.00, text ~4.5, already-compressed media ~7.9.
-# A volume that reads ~8.00 at EVERY sample point is encrypted whatever its
-# header claims; one that varies is not.
-sample_entropy() {
+# Echoes "<entropy> <zero_pct>", e.g. "8.00 0.4".
+#
+# Entropy is the tie-breaker when headers are ambiguous: encrypted data is
+# uniformly random and lands at ~7.99 everywhere, while real filesystem content
+# varies (zero runs 0.00, text ~4.5, compressed media ~7.9). The zero fraction
+# separates "encrypted" from "never written" -- both look non-textual, but an
+# unwritten region is 100% zeros and an encrypted one is ~0%.
+#
+# Both come from a single dd + od pass on purpose. They were previously two
+# functions that each re-read and re-decoded the SAME region, doubling raw
+# device reads -- and on an encrypted volume every read costs a decrypt too.
+sample_stats() {
   local part="$1" skip_sectors="$2"
   sudo dd if="/dev/r$part" bs=512 count=128 skip="$skip_sectors" 2>/dev/null \
     | od -An -tu1 -v 2>/dev/null \
     | awk '
-        { for (i = 1; i <= NF; i++) { h[$i]++; n++ } }
+        { for (i = 1; i <= NF; i++) { h[$i]++; n++; if ($i == 0) z++ } }
         END {
-          if (n == 0) { print "n/a"; exit }
+          if (n == 0) { print "n/a n/a"; exit }
           e = 0
           for (b in h) { p = h[b] / n; e -= p * log(p) / log(2) }
-          printf "%.2f", e
+          printf "%.2f %.1f", e, (z * 100) / n
         }'
-}
-
-# Fraction of a sample that is zero bytes — distinguishes "unallocated" from
-# "encrypted": encrypted volumes have essentially no zero runs.
-sample_zero_pct() {
-  local part="$1" skip_sectors="$2"
-  sudo dd if="/dev/r$part" bs=512 count=128 skip="$skip_sectors" 2>/dev/null \
-    | od -An -tu1 -v 2>/dev/null \
-    | awk '
-        { for (i = 1; i <= NF; i++) { n++; if ($i == 0) z++ } }
-        END { if (n == 0) print "n/a"; else printf "%.1f", (z * 100) / n }'
 }
 
 # Classify an OEM ID.

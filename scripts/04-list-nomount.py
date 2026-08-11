@@ -16,15 +16,12 @@ Usage:
   04-list-nomount.py /dev/rdisk4s3 --recycle-bin          # deleted files
 """
 import argparse
-import fnmatch
 import os
-import re
-import struct
 import sys
-import datetime
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib"))
-from ntfsread import open_volume, human, walk, timestamps, dedupe_records  # noqa: E402
+from ntfsread import (open_volume, human, walk, timestamps,  # noqa: E402
+                      dedupe_records, find_records, recycle_bin_items)
 
 # AppData and Windows dwarf everything and are almost never what is wanted.
 NOISE = ("appdata", "windows", "program files", "program files (x86)",
@@ -104,37 +101,14 @@ def cmd_path(ntfs, path):
 
 
 def cmd_find(ntfs, pattern, since=None, limit=500):
-    pat = pattern if any(c in pattern for c in "*?[") else f"*{pattern}*"
-    rx = re.compile(fnmatch.translate(pat), re.I)
-    since_dt = None
-    if since:
-        parts = [int(x) for x in since.split("-")]
-        since_dt = datetime.datetime(parts[0], parts[1] if len(parts) > 1 else 1,
-                                     parts[2] if len(parts) > 2 else 1,
-                                     tzinfo=datetime.timezone.utc)
-
-    print(f"\nSearching the whole MFT for {pat}"
+    print(f"\nSearching the whole MFT for {pattern}"
           + (f", modified since {since}" if since else "") + " ...\n")
-    hits, n = [], 0
-    for rec in ntfs.mft.segments():
-        n += 1
-        if n % 100000 == 0:
-            print(f"  ... {n:,} records", file=sys.stderr, flush=True)
-        try:
-            if rec.is_dir():
-                continue
-            name = rec.filename
-            if not name or not rx.match(name):
-                continue
-            if since_dt:
-                mod, cre = timestamps(rec)
-                if not any(t and t >= since_dt for t in (mod, cre)):
-                    continue
-            hits.append((rec.full_path(), rec))
-        except Exception:
-            continue
-    hits = dedupe_records(hits)
-    print(f"Scanned {n:,} MFT records -- {len(hits)} matches\n")
+
+    def progress(n):
+        print(f"  ... {n:,} records", file=sys.stderr, flush=True)
+
+    hits, scanned = find_records(ntfs, pattern, since, progress)
+    print(f"Scanned {scanned:,} MFT records -- {len(hits)} matches\n")
     for p, r in sorted(hits, key=lambda x: -(x[1].size() or 0))[:limit]:
         show(p.replace("\\", "/"), r)
     if not hits:
@@ -144,42 +118,15 @@ def cmd_find(ntfs, pattern, since=None, limit=500):
 
 
 def cmd_recycle(ntfs):
-    """$I records hold the original path and deletion time; $R holds the data."""
+    """$I holds the original path and deletion time; $R holds the data."""
     print("\nRecycle Bin contents\n")
-    try:
-        rb = ntfs.mft.get("$Recycle.Bin")
-    except Exception:
-        print("  (no $Recycle.Bin)")
-        return
-    for sid, ie in rb.listdir().items():
-        if sid in (".", ".."):
-            continue
-        try:
-            sd = ie.dereference()
-            if not sd.is_dir():
-                continue
-        except Exception:
-            continue
-        print(f"  {sid}")
-        for name, ie2 in sorted(sd.listdir().items()):
-            if not name.upper().startswith("$I"):
-                continue
-            try:
-                d = ie2.dereference().open().read()
-                ver = struct.unpack_from("<Q", d, 0)[0]
-                size = struct.unpack_from("<Q", d, 8)[0]
-                ftv = struct.unpack_from("<Q", d, 16)[0]
-                when = datetime.datetime(1601, 1, 1) + datetime.timedelta(
-                    microseconds=ftv // 10)
-                if ver >= 2:
-                    nlen = struct.unpack_from("<I", d, 24)[0]
-                    orig = d[28:28 + nlen * 2].decode("utf-16-le").rstrip("\x00")
-                else:
-                    orig = d[24:24 + 520].decode("utf-16-le").rstrip("\x00")
-                print(f"      {human(size):>10}  deleted {when:%Y-%m-%d %H:%M}  {orig}")
-                print(f"                  data file: {name.replace('$I', '$R', 1)}")
-            except Exception as e:
-                print(f"      {name}: unreadable ({e})")
+    found = 0
+    for orig, when, rrec, rname in recycle_bin_items(ntfs):
+        found += 1
+        print(f"  {human(rrec.size() or 0):>10}  deleted {when:%Y-%m-%d %H:%M}  {orig}")
+        print(f"              data file: {rname}")
+    if not found:
+        print("  (nothing recoverable in the Recycle Bin)")
 
 
 def main():

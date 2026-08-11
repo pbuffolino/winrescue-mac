@@ -35,6 +35,9 @@ else
   GOT_SMART=0
   for MODE in auto sat nvme; do
     show "sudo smartctl -a -d $MODE /dev/$DISK"
+    # shellcheck disable=SC2024  # Intentional: the redirect runs as the invoking
+    # user, so the log ends up owned by the operator rather than root and stays
+    # readable/deletable without sudo. Only the device read needs privileges.
     sudo smartctl -a -d "$MODE" "/dev/$DISK" >"$SMART_LOG" 2>&1
     RC=$?
     if [ $(( RC & 3 )) -eq 0 ] && grep -qiE 'Model|Serial|Device Model' "$SMART_LOG"; then
