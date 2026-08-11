@@ -1,0 +1,33 @@
+name: Wrong or misleading diagnosis
+description: A probe reported something incorrect about a drive
+labels: ["bug", "diagnosis", "high-priority"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **This is the highest-value bug report for this project.** A confidently wrong
+        diagnosis leads people to act destructively on the only copy of their data.
+
+        Please redact filenames and personal data.
+  - type: textarea
+    attributes:
+      label: What the tool said
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: What was actually true, and how you established it
+      description: The command or evidence that proves the real state.
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: macOS version
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: diskutil info for the partition
+      description: Redact UUIDs and serial numbers.
+      render: shell

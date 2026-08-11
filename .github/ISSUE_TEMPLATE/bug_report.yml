@@ -1,0 +1,57 @@
+name: Bug report
+description: Something behaved incorrectly
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Before posting: redact personal data.** Filenames, Windows usernames, SIDs,
+        volume GUIDs, drive serials and BitLocker keys (or key IDs) are personal
+        information. Replace them with placeholders like `Users/Sam/...`.
+
+        If you found a way this toolset could WRITE to a source drive, stop and report it
+        privately instead: Security → Report a vulnerability.
+  - type: checkboxes
+    attributes:
+      label: Confirmations
+      options:
+        - label: I have redacted all filenames and personal data from this report
+          required: true
+        - label: This is not a way to write to / damage a source drive (those go to Security)
+          required: true
+  - type: textarea
+    attributes:
+      label: What happened
+      description: What did the tool do, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Command and output
+      description: The command you ran and its output, redacted.
+      render: shell
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: macOS version
+      placeholder: "e.g. 26.6.1 (Apple Silicon M1 Pro)"
+    validations:
+      required: true
+  - type: dropdown
+    attributes:
+      label: Volume type
+      options:
+        - Plain NTFS
+        - BitLocker (clear key / suspended)
+        - BitLocker (locked)
+        - Unidentified / would not mount
+        - Disk image
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Preflight output
+      description: "Output of ./scripts/00-preflight.sh (safe to paste — touches no disks)"
+      render: shell

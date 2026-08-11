@@ -1,0 +1,32 @@
+# Raw tool output contains full filenames, which are themselves personal information.
+logs/
+
+# Generated per-job diagnosis — contains partition layout and volume identifiers.
+docs/00-diagnosis.md
+
+# Python environment
+venv/
+__pycache__/
+*.pyc
+
+# Recovered data must never enter this repo. Staging lives at ~/Recovered by design;
+# these entries exist only as a second line of defence against a stray copy.
+staging/
+recovered/
+Recovered/
+
+# Disk images
+*.img
+*.map
+*.dmg
+*.iso
+
+# Anything holding a BitLocker key
+*.bek
+recovery-key*
+*.key
+
+.DS_Store
+
+# Local machine config (names personal MCP servers, editor state, etc.)
+.claude/settings.local.json

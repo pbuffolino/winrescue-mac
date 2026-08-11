@@ -1,0 +1,29 @@
+name: Feature request
+description: Suggest a capability
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Note the hard constraint: **nothing may write to, repair or modify a source drive**,
+        and nothing may require macFUSE or another kernel extension. Requests that need
+        either will be declined.
+  - type: textarea
+    attributes:
+      label: The recovery scenario
+      description: What situation are you in that the toolset does not handle?
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Proposed capability
+    validations:
+      required: true
+  - type: checkboxes
+    attributes:
+      label: Constraints
+      options:
+        - label: This can be done without ever writing to the source drive
+          required: true
+        - label: This does not require macFUSE or a kernel extension
+          required: true

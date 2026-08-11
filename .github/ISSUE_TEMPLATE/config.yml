@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security or data-safety issue
+    url: https://github.com/pbuffolino/winrescue-mac/security/advisories/new
+    about: >-
+      Report PRIVATELY if you found a way this toolset could write to a source
+      drive, bypass a guard, or leak recovered data. Do not open a public issue.
+  - name: Question / help with a recovery
+    url: https://github.com/pbuffolino/winrescue-mac/discussions
+    about: >-
+      Ask in Discussions. Please redact filenames and personal data before posting.

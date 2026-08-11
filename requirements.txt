@@ -1,0 +1,19 @@
+# Python dependencies for the no-mount and BitLocker recovery paths.
+#
+#   python3 -m venv venv
+#   ./venv/bin/pip install -r requirements.txt
+#
+# Nothing here is a kernel extension. macFUSE is deliberately NOT required --
+# see docs/LESSONS.md on why dislocker is a dead end on Apple Silicon.
+
+# Read NTFS without mounting it (walk the MFT, read files, timestamps).
+dissect.ntfs>=3.16
+
+# BitLocker / FVE volume handling: metadata, key protectors, clear-key unlock.
+dissect.fve>=4.6
+
+# OpenSSL-backed AES-XTS. Not optional in practice: dissect.fve's own XTS is
+# pure Python and runs at ~4 MB/s, which is ~17 hours for a 237 GB volume.
+# lib/fastcrypto.py patches it to this and gets ~90 MB/s, verified
+# byte-identical against the reference implementation.
+cryptography>=45.0

@@ -1,0 +1,148 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The project's central claim is "never writes to the source drive".
+  # This job is what makes that claim checkable on every pull request.
+  safety:
+    name: safety guards
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run safety guard suite
+        run: bash tests/test-guards.sh
+
+  shell:
+    name: shell lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Syntax check every shell script
+        run: |
+          fail=0
+          while IFS= read -r f; do
+            bash -n "$f" || { echo "::error file=$f::bash syntax error"; fail=1; }
+          done < <(find . -name '*.sh' -not -path './venv/*')
+          exit $fail
+
+      - name: ShellCheck
+        uses: ludeeus/action-shellcheck@master
+        env:
+          SHELLCHECK_OPTS: -e SC1091 -e SC2181 -e SC2317
+        with:
+          severity: warning
+          ignore_paths: venv
+
+  python:
+    name: python
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install ruff
+
+      - name: Compile all sources
+        run: python -m compileall -q scripts/
+
+      - name: Lint
+        run: ruff check scripts/ --select E9,F63,F7,F82
+
+      - name: Library self-test
+        run: python tests/test_lib.py
+
+  privacy:
+    name: privacy audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Recovery work involves other people's data. A filename, a Windows SID
+      # or a volume GUID committed by accident is a real disclosure, and it is
+      # permanent once it is in git history. Fail the build instead.
+      - name: Scan for personal data
+        run: |
+          set -uo pipefail
+          fail=0
+          check() {
+            local label="$1" pat="$2"
+            if grep -rInE "$pat" . \
+                 --exclude-dir=.git --exclude-dir=venv --exclude-dir=__pycache__ \
+                 --exclude-dir=.github 2>/dev/null; then
+              echo "::error::possible $label committed (see matches above)"
+              fail=1
+            fi
+          }
+          # Windows security identifiers (S-1-5-21-<domain>-<rid>)
+          check "Windows SID"        'S-1-5-21-[0-9]{5,}'
+          # BitLocker recovery keys: 8 groups of 6 digits
+          check "BitLocker key"      '[0-9]{6}-[0-9]{6}-[0-9]{6}-[0-9]{6}-[0-9]{6}'
+          # Absolute paths into a real user's home directory
+          check "absolute home path" '/Users/[a-z][a-z0-9_.-]+/(Github|Documents|Desktop|Downloads)'
+          check "Windows user path"  'C:\\+Users\\+[A-Za-z][A-Za-z0-9_. -]+\\+'
+          # Private keys
+          check "private key"        'BEGIN (RSA|OPENSSH|PGP|EC) PRIVATE KEY'
+          exit $fail
+
+      - name: Ensure recovered data can never be committed
+        run: |
+          fail=0
+          for p in logs/ venv/ 'docs/00-diagnosis.md' '.claude/settings.local.json' '*.img'; do
+            grep -qF -- "$p" .gitignore || { echo "::error::.gitignore is missing '$p'"; fail=1; }
+          done
+          # Nothing that looks like recovered media should ever be tracked.
+          if git ls-files | grep -iE '\.(jpg|jpeg|png|heic|mp4|mov|avi|mkv|pdf|docx|xlsx|img|dmg|zip)$'; then
+            echo "::error::binary/media files are tracked — recovered data must never be committed"
+            fail=1
+          fi
+          exit $fail
+
+  docs:
+    name: docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Required documentation is present
+        run: |
+          fail=0
+          for f in README.md CLAUDE.md CONTRIBUTING.md CODE_OF_CONDUCT.md SECURITY.md \
+                   LICENSE requirements.txt docs/PLAYBOOK.md docs/LESSONS.md \
+                   docs/PLATFORM-CHOICE.md .claude/skills/winrescue/SKILL.md; do
+            [ -f "$f" ] || { echo "::error::missing $f"; fail=1; }
+          done
+          exit $fail
+
+      - name: Internal doc links resolve
+        run: |
+          fail=0
+          while IFS= read -r md; do
+            grep -oE '\]\(([A-Za-z0-9_./-]+\.md)\)' "$md" | sed -E 's/^\]\((.*)\)$/\1/' |
+            while IFS= read -r link; do
+              target="$(dirname "$md")/$link"
+              [ -f "$target" ] || echo "::error file=$md::broken link -> $link"
+            done
+          done < <(find . -name '*.md' -not -path './venv/*' -not -path './.git/*')
+          exit $fail
