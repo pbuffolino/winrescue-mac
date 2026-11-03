@@ -139,9 +139,11 @@ partial, stale or self-reviewed result successful. Any new source revision needs
 matching validation and review before its statuses are posted.
 
 These statuses use GitHub's API, not hosted runners. They are operator
-attestations, not cryptographic proof of reviewer identity. The current
-repository has only its owner as a collaborator. Adding writers requires a
-separate review of who may attest; do not broaden access as part of validation.
+attestations, not cryptographic proof of reviewer identity. Any person or
+integration with status-write permission can post them. The current repository
+has only its owner as a human collaborator; that does not exclude installed
+integrations. Review who may attest when granting write permissions; do not
+broaden access as part of validation.
 Preserve the PR requirement, conversation resolution and branch safety rules.
 
 ## Testing against real hardware

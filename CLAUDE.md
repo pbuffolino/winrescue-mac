@@ -210,7 +210,8 @@ and the actual independent reviews pass. These are operator attestations, not
 authenticated reviewer identities. Follow [the contributor contract](CONTRIBUTING.md)
 and preserve PR/conversation and branch-safety protections. No hosted runner is
 needed to post a commit status.
-A code owner still approves the PR; the implementer does not self-approve. Source
-changes require fresh evidence. Hosted checks being absent does not establish a
+The implementer must not self-approve; the coordinator records the actual
+independent reviews for the exact revision. Source changes require fresh
+evidence. Hosted checks being absent does not establish a
 pass. Retain branch protections and Dependabot security/update services. Local
 source tests never establish real-device or recovered-file acceptance.
