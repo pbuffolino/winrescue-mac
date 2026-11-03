@@ -202,6 +202,14 @@ installation and recovery-operation checkpoint above remains applicable.
 
 Before merge, record the exact candidate SHA, toolchain and actual local results
 in the PR and obtain independent native Codex code/security reviews of that head.
+
+The owner's Codex-review policy uses required exact-head GitHub statuses
+`local/checks` and `codex/review` instead of a GitHub human-approval counter.
+The authorized coordinator may attest success only after the full local gate
+and the actual independent reviews pass. These are operator attestations, not
+authenticated reviewer identities. Follow [the contributor contract](CONTRIBUTING.md)
+and preserve PR/conversation and branch-safety protections. No hosted runner is
+needed to post a commit status.
 A code owner still approves the PR; the implementer does not self-approve. Source
 changes require fresh evidence. Hosted checks being absent does not establish a
 pass. Retain branch protections and Dependabot security/update services. Local

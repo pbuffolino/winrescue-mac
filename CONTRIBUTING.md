@@ -127,8 +127,22 @@ Unverified crypto shortcuts will not be merged.
 - Focused commits with a clear subject line; imperative mood.
 - Describe **what breaks if this is wrong** in the PR body — for this project that matters
   more than what the change does.
-- Every PR needs independent Codex code/security review and code-owner approval before merge. Complete local checks must pass on the exact candidate SHA.
+- Every PR needs independent Codex code/security review. Complete local checks must pass on the exact candidate SHA. The owner's selected local-review policy replaces a separate GitHub human-approval counter.
 - Squash merge; the branch is deleted on merge.
+
+GitHub requires the exact-head commit statuses `local/checks` and `codex/review`.
+The authorized coordinator posts `local/checks` only after the complete local
+gate succeeds, and `codex/review` only after both independent native Codex
+reviewers report no blocking findings. Record commands, versions and reviewer
+evidence in the PR first. Never post an old hosted CI context or label a failed,
+partial, stale or self-reviewed result successful. Any new source revision needs
+matching validation and review before its statuses are posted.
+
+These statuses use GitHub's API, not hosted runners. They are operator
+attestations, not cryptographic proof of reviewer identity. The current
+repository has only its owner as a collaborator. Adding writers requires a
+separate review of who may attest; do not broaden access as part of validation.
+Preserve the PR requirement, conversation resolution and branch safety rules.
 
 ## Testing against real hardware
 
