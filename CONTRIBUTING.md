@@ -21,7 +21,7 @@ Concretely, a PR must never introduce:
 - `mount` without an explicit read-only flag
 - anything requiring **macFUSE** or another kernel extension
 
-`tests/test-guards.sh` enforces this in CI, including a scan of the scripts themselves.
+`tests/test-guards.sh` enforces this locally, including a scan of the scripts themselves.
 If your change makes that suite fail, the change is wrong — not the test.
 
 New device access should go through `AlignedReader` in `scripts/lib/ntfsread.py`, which
@@ -33,13 +33,16 @@ promise in a comment.
 ## Before you open a PR
 
 ```bash
-python3 -m venv venv && ./venv/bin/pip install -r requirements.txt
-./scripts/00-preflight.sh      # environment check — touches no disks
-bash tests/test-guards.sh      # safety suite — must be 100% green
-./venv/bin/python tests/test_lib.py
+scripts/check-local.sh
 ```
 
-All three run in CI on every PR. Running them locally first saves a round trip.
+The complete gate uses already-approved Python 3.11/3.12/3.13 environments with
+`requirements.txt` and Ruff installed, plus ShellCheck. It never installs software;
+request installation approval separately if a prerequisite is missing. It retains
+safety tests, shell/Python lint, temporary-file library tests, source privacy and
+documentation checks. No source drive, recovery output or credential is needed.
+Record the exact candidate SHA, actual commands/results and independent native
+Codex code/security reviews in the PR. Failures or missing tools block acceptance.
 
 ---
 
@@ -57,8 +60,8 @@ Never include in an issue, PR, commit or test fixture:
 - absolute paths containing a real home directory
 - screenshots of file listings
 
-Redact with obvious placeholders (`Users/Sam/...`, `A1B2C3D4-...`). CI runs a privacy scan
-that fails the build on several of these patterns, but it is a backstop, not a substitute
+Redact with obvious placeholders (`Users/Sam/...`, `A1B2C3D4-...`). The local gate runs a privacy scan
+that blocks acceptance on several of these patterns, but it is a backstop, not a substitute
 for checking.
 
 `logs/`, `venv/`, `docs/00-diagnosis.md` and `~/Recovered` are gitignored for this reason.
@@ -124,7 +127,7 @@ Unverified crypto shortcuts will not be merged.
 - Focused commits with a clear subject line; imperative mood.
 - Describe **what breaks if this is wrong** in the PR body — for this project that matters
   more than what the change does.
-- Every PR needs review and approval from a code owner before merge. CI must be green.
+- Every PR needs independent Codex code/security review and code-owner approval before merge. Complete local checks must pass on the exact candidate SHA.
 - Squash merge; the branch is deleted on merge.
 
 ## Testing against real hardware

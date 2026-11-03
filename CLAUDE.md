@@ -189,3 +189,20 @@ The drive usually belongs to someone who is not in the room.
   for their password.
 - **Do not suggest erasing the source** until the owner confirms they have everything.
 - Delete `~/Recovered` after handoff.
+
+## Local source checks and Codex review
+
+Owner policy (2026-11-03): source checks run locally with
+`scripts/check-local.sh`; no authored hosted CI workflow remains. The gate
+preserves safety guards, shell syntax/ShellCheck, Python 3.11/3.12/3.13 compile,
+Ruff/library tests, tracked-source privacy and documentation checks. Use existing
+approved runtimes and dependencies. Missing tools fail closed. This command never
+installs software, opens devices or reads ignored recovery/log files; every
+installation and recovery-operation checkpoint above remains applicable.
+
+Before merge, record the exact candidate SHA, toolchain and actual local results
+in the PR and obtain independent native Codex code/security reviews of that head.
+A code owner still approves the PR; the implementer does not self-approve. Source
+changes require fresh evidence. Hosted checks being absent does not establish a
+pass. Retain branch protections and Dependabot security/update services. Local
+source tests never establish real-device or recovered-file acceptance.

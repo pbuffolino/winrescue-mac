@@ -3,10 +3,10 @@
 #
 # This is the most important test in the repo. The project's central claim is
 # "never writes to the source drive", and these tests are what make that claim
-# checkable rather than aspirational. CI runs them on every pull request.
+# checkable rather than aspirational. The local source gate runs them before every merge.
 #
 # Runs anywhere bash does -- no disks are touched and no macOS-only tools are
-# required, so it works on a Linux CI runner.
+# required, so it also works in a separately provisioned local Linux environment.
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -101,7 +101,7 @@ echo
 echo "== soft guard returns instead of exiting =="
 # Regression: assert_mounted_readonly exits internally, so `|| true` on it is
 # dead code. Read-only probes must use the soft form.
-( warn_if_not_readonly "/definitely/not/a/mount" ) >/dev/null 2>&1
+( mount() { return 0; }; warn_if_not_readonly "/definitely/not/a/mount" ) >/dev/null 2>&1
 if [ $? -ne 0 ]; then
   PASS=$((PASS + 1)); echo "  ok       warn_if_not_readonly returned non-zero without exiting"
 else
